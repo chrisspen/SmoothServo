@@ -11,9 +11,11 @@
 
 #include <Servo.h>
 
-#define SMOOTH_SERVO_LOWER 600
-#define SMOOTH_SERVO_CENTER 1500
-#define SMOOTH_SERVO_UPPER 2400
+#define SERVO_RANGE 600 // 800?
+#define SERVO_CENTER 1400 // 1500?
+//#define SERVO_LOWER SERVO_CENTER - SERVO_RANGE
+//#define SERVO_UPPER SERVO_CENTER + SERVO_RANGE
+
 #define SMOOTH_SERVO_TIMEOUT_MS 1000
 
 class SmoothServo{
@@ -32,11 +34,11 @@ private:
     bool _attached = false;
 
     // The desired position of the servo, in the range [600:2400] with 1500 as center.
-    float _target_pos= SMOOTH_SERVO_CENTER;
+    float _target_pos;
 
     // The position we're currently telling the servo to move to, in the range [600:2400]
     // with 1500 as center.
-    float _current_pos = SMOOTH_SERVO_CENTER;
+    float _current_pos;
 
     // The amount of delay at which the servo position changes when a new target is set.
     // Should be between [0.0:1.0]
@@ -49,14 +51,22 @@ private:
     bool _enforce = false;
 
     // If true, indicates the first update cycle. Otherwise false.
-    bool _first = true;
+    //bool _first = true;
 
     // Timestamp of when the servo was enabled and motion began.
     unsigned long _motion_start;
 
+    int _servo_center;
+
+    int _servo_range;
+
+    int _lower_degrees;
+
+    int _upper_degrees;
+
 public:
 
-	SmoothServo(int set_pin, int get_pin){
+	SmoothServo(int set_pin, int get_pin, int center=SERVO_CENTER, int range=SERVO_RANGE, int lower_degrees=0, int upper_degrees=180){
 
         _set_pin = set_pin; // digital pin that supports PWM
         _get_pin = get_pin; // analog
@@ -64,6 +74,22 @@ public:
         pinMode(_set_pin, OUTPUT);
         pinMode(_get_pin, INPUT);
 
+        _servo_center = center;
+        _servo_range = range;
+
+        _lower_degrees = lower_degrees;
+        _upper_degrees = upper_degrees;
+
+        _target_pos = _servo_center;
+        _current_pos = _servo_center;
+	}
+
+	int get_servo_lower(){
+		return _servo_center - _servo_range;
+	}
+
+	int get_servo_upper(){
+		return _servo_center + _servo_range;
 	}
 
 	void set_enforce(bool v){
@@ -74,12 +100,17 @@ public:
 		return _attached;
 	}
 
+	float get_current_pos(){
+		return _current_pos;
+	}
+
     void enable(){
     	// Activate servo and enforce position.
     	// It's recommended to specify a target position before calling this.
         if(!_attached){
+            //_servo.write(_target_pos);
+        	//_servo.writeMicroseconds((int)_current_pos);
             _servo.attach(_set_pin);
-            _servo.write(_target_pos);
             _motion_start = millis();
         }
         _attached = true;
@@ -92,7 +123,7 @@ public:
 
     void set_position(float position){
     	// Sets the target position.
-    	_target_pos = constrain(position, SMOOTH_SERVO_LOWER, SMOOTH_SERVO_UPPER);
+    	_target_pos = constrain(position, get_servo_lower(), get_servo_upper());
     }
 
     void go_to(float position){
@@ -101,8 +132,8 @@ public:
     }
 
     void go_to_degree(int degree){
-    	float position = (float)constrain(degree, 0, 180);
-    	position = map(position, 0, 180, SMOOTH_SERVO_LOWER, SMOOTH_SERVO_UPPER);
+    	float position = (float)constrain(degree, _lower_degrees, _upper_degrees);
+    	position = map(position, _lower_degrees, _upper_degrees, get_servo_lower(), get_servo_upper());
     	go_to(position);
     }
 
@@ -114,21 +145,24 @@ public:
     	return millis() - _motion_start > SMOOTH_SERVO_TIMEOUT_MS;
     }
 
+    bool passed_minimum_sweep_time(){
+    	return millis() - _motion_start > 1000;
+    }
+
     void update(){
 		int pot; // raw actual position as read from potentiometer
-		//float actual_pos;
 		float diff; // difference of position
 
 		if(_attached){
 
 			// If this is the first time we've tried updating the position,
 			// then read the actual position so we know how much easing to apply.
-			if(_first){
+			/*if(_first){
 				pot = analogRead(_get_pin);
-				pot = map(pot, 0, 1023, SMOOTH_SERVO_LOWER, SMOOTH_SERVO_UPPER);
+				pot = map(pot, 0, 1023, get_servo_lower(), get_servo_upper());
 				_current_pos = (float)pot;
 				_first = true;
-			}
+			}*/
 
 			// Work out the required travel.
 			diff = _target_pos - _current_pos;
@@ -136,19 +170,20 @@ public:
 			// Avoid any strange zero condition
 			if( diff != 0.00 ) {
 				_current_pos += diff * _easing;
+				//_current_pos = _target_pos;//TODO:remove
 			} else {
 				// if diff == 0, we don't need to move!
-				if(!_enforce){
+				if(!_enforce && passed_minimum_sweep_time()){
 					disable();
 				}
 			}
 
 			// Move the servo to our eased intermediate position.
-			_servo.writeMicroseconds( (int)_current_pos );
+			_servo.writeMicroseconds((int)_current_pos);
 
 			// If we haven't been told to indefinitely try to enforce position,
 			// and we've exceeded our timeout, then deactivate servo.
-			if(!_enforce && timed_out()){
+			if(!_enforce && timed_out() && passed_minimum_sweep_time()){
 				disable();
 			}
 
@@ -159,6 +194,5 @@ public:
     }
 
 };
-
 
 #endif
