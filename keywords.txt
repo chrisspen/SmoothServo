@@ -1,1 +1,20 @@
-smooth smoothing easing servo control
+SmoothServo	KEYWORD1
+
+get_servo_lower	KEYWORD2
+get_servo_upper	KEYWORD2
+set_enforce	KEYWORD2
+is_enabled	KEYWORD2
+get_current_pos	KEYWORD2
+enable	KEYWORD2
+disable	KEYWORD2
+set_position	KEYWORD2
+go_to	KEYWORD2
+go_to_degree	KEYWORD2
+set_easing	KEYWORD2
+timed_out	KEYWORD2
+passed_minimum_sweep_time	KEYWORD2
+update	KEYWORD2
+
+SERVO_RANGE	LITERAL1
+SERVO_CENTER	LITERAL1
+SMOOTH_SERVO_TIMEOUT_MS	LITERAL1
